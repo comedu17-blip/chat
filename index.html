@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오목</title>
+<style>
+  :root{
+    --wood-light:#e3b978;
+    --wood:#c9974f;
+    --wood-dark:#8a5a2b;
+    --ink:#2b1d10;
+    --line:#5a3d1f;
+    --black-stone-1:#3a3a3a;
+    --black-stone-2:#050505;
+    --white-stone-1:#ffffff;
+    --white-stone-2:#d8d3c8;
+    --accent:#b3452c;
+    --paper:#f3e6cf;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    height:100%;
+    background:radial-gradient(circle at 50% 0%, #3f2c18, #1c130a 70%);
+    font-family:'Noto Serif KR', 'Georgia', serif;
+    color:var(--paper);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .stage{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+    padding:20px;
+    width:100%;
+    max-width:640px;
+  }
+  h1{
+    margin:0;
+    font-size:2rem;
+    letter-spacing:0.5em;
+    padding-left:0.5em; /* optical centering for tracking */
+    color:var(--paper);
+    text-shadow:0 2px 6px rgba(0,0,0,0.6);
+  }
+  .subtitle{
+    margin:-8px 0 4px;
+    font-size:0.8rem;
+    letter-spacing:0.3em;
+    color:#c9a56a;
+    text-transform:uppercase;
+  }
+  .status-bar{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:rgba(0,0,0,0.35);
+    border:1px solid rgba(255,255,255,0.08);
+    padding:8px 18px;
+    border-radius:999px;
+    font-size:0.95rem;
+    min-height:20px;
+  }
+  .turn-dot{
+    width:16px;height:16px;
+    border-radius:50%;
+    box-shadow:inset 0 -2px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.6);
+    flex-shrink:0;
+  }
+  .turn-dot.black{background:radial-gradient(circle at 35% 30%, var(--black-stone-1), var(--black-stone-2));}
+  .turn-dot.white{background:radial-gradient(circle at 35% 30%, var(--white-stone-1), var(--white-stone-2));}
+
+  .board-wrap{
+    position:relative;
+    padding:22px;
+    background:
+      linear-gradient(135deg, var(--wood-light), var(--wood) 45%, var(--wood-dark));
+    border-radius:10px;
+    box-shadow:
+      0 20px 40px rgba(0,0,0,0.55),
+      inset 0 0 0 2px rgba(0,0,0,0.25),
+      inset 0 0 40px rgba(0,0,0,0.15);
+  }
+  canvas{
+    display:block;
+    touch-action:none;
+    cursor:pointer;
+    border-radius:2px;
+  }
+
+  .controls{
+    display:flex;
+    gap:10px;
+  }
+  button{
+    font-family:inherit;
+    font-size:0.85rem;
+    letter-spacing:0.1em;
+    background:linear-gradient(180deg, #7a4c22, #5a3416);
+    color:var(--paper);
+    border:1px solid rgba(255,255,255,0.15);
+    padding:9px 20px;
+    border-radius:6px;
+    cursor:pointer;
+    box-shadow:0 3px 6px rgba(0,0,0,0.4);
+    transition:transform 0.08s ease, filter 0.15s ease;
+  }
+  button:hover{filter:brightness(1.15);}
+  button:active{transform:translateY(1px);}
+
+  .win-banner{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(10,6,2,0.55);
+    backdrop-filter:blur(2px);
+    border-radius:10px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.4s ease;
+  }
+  .win-banner.show{opacity:1;pointer-events:auto;}
+  .win-card{
+    background:var(--paper);
+    color:var(--ink);
+    padding:26px 40px;
+    border-radius:8px;
+    text-align:center;
+    box-shadow:0 12px 30px rgba(0,0,0,0.5);
+    transform:translateY(10px);
+    transition:transform 0.4s ease;
+  }
+  .win-banner.show .win-card{transform:translateY(0);}
+  .win-card .big{
+    font-size:1.5rem;
+    letter-spacing:0.15em;
+    margin-bottom:10px;
+  }
+  .win-card .accent-line{
+    width:40px;height:3px;
+    background:var(--accent);
+    margin:0 auto 14px;
+  }
+
+  @media (max-width:480px){
+    h1{font-size:1.4rem;letter-spacing:0.35em;}
+    .board-wrap{padding:12px;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="subtitle">Five in a Row</div>
+  <h1>오 목</h1>
+
+  <div class="status-bar" id="statusBar">
+    <div class="turn-dot black" id="turnDot"></div>
+    <span id="statusText">흑돌 차례입니다</span>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board"></canvas>
+    <div class="win-banner" id="winBanner">
+      <div class="win-card">
+        <div class="big" id="winText">흑돌 승리!</div>
+        <div class="accent-line"></div>
+        <button id="restartInBanner">다시 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="undoBtn">한 수 무르기</button>
+    <button id="restartBtn">새 게임</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const SIZE = 15;               // 15x15 board
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const statusText = document.getElementById('statusText');
+  const turnDot = document.getElementById('turnDot');
+  const winBanner = document.getElementById('winBanner');
+  const winText = document.getElementById('winText');
+  const undoBtn = document.getElementById('undoBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const restartInBanner = document.getElementById('restartInBanner');
+
+  let cell, pad, boardPx;
+
+  function computeDims(){
+    const maxAvailable = Math.min(window.innerWidth - 80, window.innerHeight - 260, 560);
+    boardPx = Math.max(320, maxAvailable);
+    cell = boardPx / (SIZE - 1);
+    pad = cell; // margin equal to one cell so stones near edge aren't clipped
+    const total = boardPx + pad * 2;
+    canvas.width = total;
+    canvas.height = total;
+    canvas.style.width = total + 'px';
+    canvas.style.height = total + 'px';
+  }
+
+  let board;      // 0 empty, 1 black, 2 white
+  let history;    // list of {r,c,player}
+  let current;    // 1 or 2
+  let gameOver;
+
+  function resetGame(){
+    board = Array.from({length:SIZE}, () => Array(SIZE).fill(0));
+    history = [];
+    current = 1;
+    gameOver = false;
+    winBanner.classList.remove('show');
+    updateStatus();
+    draw();
+  }
+
+  function updateStatus(){
+    if(gameOver) return;
+    turnDot.className = 'turn-dot ' + (current === 1 ? 'black' : 'white');
+    statusText.textContent = (current === 1 ? '흑돌' : '백돌') + ' 차례입니다';
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // grid lines
+    ctx.strokeStyle = 'rgba(45,30,10,0.85)';
+    ctx.lineWidth = 1.4;
+    for(let i=0;i<SIZE;i++){
+      const pos = pad + i*cell;
+      ctx.beginPath();
+      ctx.moveTo(pad, pos);
+      ctx.lineTo(pad + boardPx, pos);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(pos, pad);
+      ctx.lineTo(pos, pad + boardPx);
+      ctx.stroke();
+    }
+
+    // outer border thicker
+    ctx.lineWidth = 2.2;
+    ctx.strokeRect(pad, pad, boardPx, boardPx);
+
+    // star points (standard 15x15 hoshi at 3-3, 3-11, 11-3, 11-11, 7-7)
+    const stars = [3,7,11];
+    ctx.fillStyle = 'rgba(45,30,10,0.85)';
+    stars.forEach(r=>{
+      stars.forEach(c=>{
+        drawDot(r,c);
+      });
+    });
+    drawDot(7,7);
+
+    // stones
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        if(board[r][c] !== 0){
+          drawStone(r,c,board[r][c]);
+        }
+      }
+    }
+
+    // last move marker
+    if(history.length > 0){
+      const last = history[history.length-1];
+      const {x,y} = toXY(last.r, last.c);
+      ctx.beginPath();
+      ctx.arc(x, y, cell*0.12, 0, Math.PI*2);
+      ctx.fillStyle = last.player === 1 ? '#e0453a' : '#b3452c';
+      ctx.fill();
+    }
+  }
+
+  function drawDot(r,c){
+    const {x,y} = toXY(r,c);
+    ctx.beginPath();
+    ctx.arc(x,y, Math.max(2.5, cell*0.06), 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function toXY(r,c){
+    return { x: pad + c*cell, y: pad + r*cell };
+  }
+
+  function drawStone(r,c,player){
+    const {x,y} = toXY(r,c);
+    const radius = cell*0.46;
+
+    // shadow
+    ctx.beginPath();
+    ctx.ellipse(x, y+radius*0.12, radius*0.95, radius*0.85, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fill();
+
+    const grad = ctx.createRadialGradient(
+      x - radius*0.35, y - radius*0.4, radius*0.15,
+      x, y, radius
+    );
+    if(player === 1){
+      grad.addColorStop(0, '#5a5a5a');
+      grad.addColorStop(0.5, '#1a1a1a');
+      grad.addColorStop(1, '#000000');
+    } else {
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.6, '#eeeae0');
+      grad.addColorStop(1, '#c9c2b3');
+    }
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  function posFromEvent(evt){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clientX = (evt.touches ? evt.touches[0].clientX : evt.clientX);
+    const clientY = (evt.touches ? evt.touches[0].clientY : evt.clientY);
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+    const c = Math.round((x - pad) / cell);
+    const r = Math.round((y - pad) / cell);
+    if(r < 0 || r >= SIZE || c < 0 || c >= SIZE) return null;
+    return {r,c};
+  }
+
+  function handlePlace(evt){
+    if(gameOver) return;
+    const pos = posFromEvent(evt);
+    if(!pos) return;
+    const {r,c} = pos;
+    if(board[r][c] !== 0) return;
+
+    board[r][c] = current;
+    history.push({r,c,player:current});
+    draw();
+
+    if(checkWin(r,c,current)){
+      gameOver = true;
+      showWin(current);
+      return;
+    }
+
+    if(history.length === SIZE*SIZE){
+      gameOver = true;
+      statusText.textContent = '무승부입니다';
+      return;
+    }
+
+    current = current === 1 ? 2 : 1;
+    updateStatus();
+  }
+
+  function checkWin(r,c,player){
+    const dirs = [[1,0],[0,1],[1,1],[1,-1]];
+    for(const [dr,dc] of dirs){
+      let count = 1;
+      let rr=r+dr, cc=c+dc;
+      while(rr>=0 && rr<SIZE && cc>=0 && cc<SIZE && board[rr][cc]===player){
+        count++; rr+=dr; cc+=dc;
+      }
+      rr=r-dr; cc=c-dc;
+      while(rr>=0 && rr<SIZE && cc>=0 && cc<SIZE && board[rr][cc]===player){
+        count++; rr-=dr; cc-=dc;
+      }
+      if(count >= 5) return true;
+    }
+    return false;
+  }
+
+  function showWin(player){
+    winText.textContent = (player === 1 ? '흑돌' : '백돌') + ' 승리!';
+    winBanner.classList.add('show');
+    statusText.textContent = (player === 1 ? '흑돌' : '백돌') + ' 승리!';
+  }
+
+  function undo(){
+    if(gameOver && history.length > 0){
+      // if game already over, undoing should also reopen board
+    }
+    if(history.length === 0) return;
+    const last = history.pop();
+    board[last.r][last.c] = 0;
+    current = last.player;
+    gameOver = false;
+    winBanner.classList.remove('show');
+    updateStatus();
+    draw();
+  }
+
+  canvas.addEventListener('click', handlePlace);
+  canvas.addEventListener('touchstart', function(e){
+    e.preventDefault();
+    handlePlace(e);
+  }, {passive:false});
+
+  undoBtn.addEventListener('click', undo);
+  restartBtn.addEventListener('click', resetGame);
+  restartInBanner.addEventListener('click', resetGame);
+
+  window.addEventListener('resize', ()=>{
+    computeDims();
+    draw();
+  });
+
+  computeDims();
+  resetGame();
+})();
+</script>
+</body>
+</html>
